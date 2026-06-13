@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Call Analytics Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#07101f;--surface:#0e1a2e;--s2:#162035;--border:#1c2d44;
+  --accent:#3b82f6;--cyan:#06b6d4;--purple:#8b5cf6;--green:#10b981;
+  --orange:#f59e0b;--red:#ef4444;--pink:#ec4899;--lime:#84cc16;
+  --text:#e2e8f0;--t2:#94a3b8;--t3:#475569;
+  --mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px;}
+
+/* ── UPLOAD ── */
+#upload-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;
+  background:radial-gradient(ellipse at 30% 20%,rgba(59,130,246,.09) 0%,transparent 60%),
+             radial-gradient(ellipse at 70% 80%,rgba(139,92,246,.07) 0%,transparent 60%);}
+.u-logo{font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--accent);text-transform:uppercase;margin-bottom:44px;opacity:.8;}
+.u-title{font-size:34px;font-weight:700;letter-spacing:-1px;text-align:center;margin-bottom:10px;
+  background:linear-gradient(135deg,#e2e8f0,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.u-sub{color:var(--t2);text-align:center;margin-bottom:44px;font-size:14px;line-height:1.6;}
+.drop-zone{width:100%;max-width:500px;border:2px dashed var(--border);border-radius:16px;padding:52px 36px;text-align:center;
+  cursor:pointer;transition:all .2s;background:var(--surface);position:relative;}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--accent);background:rgba(59,130,246,.04);}
+.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.drop-icon{width:52px;height:52px;margin:0 auto 18px;border-radius:13px;
+  background:linear-gradient(135deg,rgba(59,130,246,.2),rgba(139,92,246,.2));display:flex;align-items:center;justify-content:center;font-size:24px;}
+.drop-zone h3{font-size:15px;font-weight:600;margin-bottom:6px;}
+.drop-zone p{color:var(--t2);font-size:12px;}
+.fmt-pills{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:24px;}
+.pill{font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border);color:var(--t3);letter-spacing:1px;}
+#u-err{margin-top:14px;color:var(--red);font-size:12px;display:none;text-align:center;}
+
+/* ── TOPBAR ── */
+#dashboard{display:none;}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:52px;
+  display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;}
+.tb-l{display:flex;align-items:center;gap:12px;}
+.tb-logo{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--accent);text-transform:uppercase;}
+.tb-title{font-weight:600;font-size:14px;}
+.tb-file{font-size:10px;color:var(--t2);background:var(--bg);padding:3px 9px;border-radius:5px;border:1px solid var(--border);font-family:var(--mono);}
+.tb-r{display:flex;gap:8px;align-items:center;}
+.btn{background:transparent;border:1px solid var(--border);color:var(--t2);padding:5px 12px;border-radius:7px;
+  cursor:pointer;font-size:11px;font-family:'Inter',sans-serif;transition:all .15s;display:flex;align-items:center;gap:5px;}
+.btn:hover{border-color:var(--accent);color:var(--text);}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn-primary:hover{background:#2563eb;border-color:#2563eb;color:#fff;}
+
+/* ── TABS ── */
+.tabs-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:0;}
+.tab{padding:11px 18px;font-size:12px;font-weight:500;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;}
+.tab:hover{color:var(--t2);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* ── FILTERS ── */
+.filters-bar{background:var(--s2);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+.fl{font-size:10px;font-family:var(--mono);letter-spacing:1.5px;color:var(--t3);text-transform:uppercase;margin-right:2px;}
+.fg{display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:0 10px;height:32px;transition:border .15s;}
+.fg:focus-within{border-color:var(--accent);}
+.fg .fi{font-size:12px;flex-shrink:0;}
+.fg select,.fg input[type=date]{background:transparent;border:none;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;outline:none;cursor:pointer;padding:0;}
+.fg select{min-width:120px;}
+.fg input[type=date]{min-width:110px;color-scheme:dark;}
+.fg select option{background:var(--s2);}
+.fg-date{gap:5px;}
+.date-sep{color:var(--t3);font-size:11px;}
+.f-count{font-family:var(--mono);font-size:10px;background:rgba(59,130,246,.14);color:var(--accent);
+  border:1px solid rgba(59,130,246,.2);padding:2px 7px;border-radius:10px;}
+.btn-clear{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:var(--red);
+  padding:5px 10px;border-radius:7px;cursor:pointer;font-size:11px;font-family:'Inter',sans-serif;transition:all .15s;margin-left:auto;}
+.btn-clear:hover{background:rgba(239,68,68,.2);}
+
+/* ── TAB PANELS ── */
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+.main{padding:18px 20px 40px;}
+
+/* ── SECTION LABEL ── */
+.slabel{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--t3);
+  margin-bottom:9px;padding-bottom:5px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.copy-btn{font-family:var(--mono);font-size:9px;letter-spacing:1px;background:var(--s2);border:1px solid var(--border);
+  color:var(--t3);padding:2px 8px;border-radius:5px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:4px;}
+.copy-btn:hover{border-color:var(--accent);color:var(--accent);}
+.copy-btn.copied{border-color:var(--green);color:var(--green);}
+
+/* ── KPI ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:9px;margin-bottom:18px;}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px 16px;position:relative;overflow:hidden;transition:border .15s;}
+.kpi:hover{border-color:var(--c,var(--accent));}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--c,var(--accent));}
+.kpi-label{font-size:9px;font-family:var(--mono);letter-spacing:1px;color:var(--t3);text-transform:uppercase;margin-bottom:6px;}
+.kpi-value{font-size:24px;font-weight:700;letter-spacing:-0.5px;line-height:1;margin-bottom:3px;color:var(--c,var(--accent));}
+.kpi-sub{font-size:11px;color:var(--t2);}
+
+/* ── CHART CARDS ── */
+.row{display:grid;gap:12px;margin-bottom:12px;}
+.r2{grid-template-columns:1fr 1fr;}
+.r3{grid-template-columns:1fr 1fr 1fr;}
+.r21{grid-template-columns:2fr 1fr;}
+.r12{grid-template-columns:1fr 2fr;}
+.cc{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:16px 18px;position:relative;}
+.cc-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:8px;}
+.cc-head-l{flex:1;}
+.ct{font-size:12px;font-weight:600;}
+.cd{font-size:10px;color:var(--t2);margin-top:2px;}
+.cc-actions{display:flex;gap:5px;align-items:center;}
+.ctag{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:14px;background:var(--bg);border:1px solid var(--border);color:var(--t3);}
+.cw{position:relative;height:200px;}
+.cw-lg{position:relative;height:250px;}
+.cw-sm{position:relative;height:170px;}
+.cw-xl{position:relative;height:300px;}
+.no-data{display:flex;align-items:center;justify-content:center;height:100%;color:var(--t3);font-size:12px;font-style:italic;}
+
+/* ── TABLE ── */
+.tbl-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;overflow:hidden;margin-bottom:12px;}
+.tbl-head{padding:14px 18px 11px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.tbl-title{font-size:12px;font-weight:600;}
+.tbl-desc{font-size:10px;color:var(--t2);margin-top:1px;}
+.tbl-head-r{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
+.tbl-search{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:7px;
+  font-size:11px;font-family:'Inter',sans-serif;outline:none;width:180px;}
+.tbl-search:focus{border-color:var(--accent);}
+table{width:100%;border-collapse:collapse;}
+thead th{padding:8px 12px;text-align:left;font-size:9px;font-family:var(--mono);letter-spacing:1px;color:var(--t3);
+  text-transform:uppercase;background:var(--bg);border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none;}
+thead th:hover{color:var(--t2);}
+thead th.sa::after{content:' ↑';}thead th.sd::after{content:' ↓';}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+tbody tr:hover{background:var(--s2);}
+tbody tr:last-child{border-bottom:none;}
+tbody td{padding:9px 12px;font-size:11px;white-space:nowrap;}
+.bar-cell{display:flex;align-items:center;gap:7px;}
+.mini-bg{flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden;min-width:44px;}
+.mini-fill{height:100%;border-radius:2px;}
+.tpill{display:inline-block;padding:1px 7px;border-radius:9px;font-size:10px;font-family:var(--mono);}
+.csat-bar{display:flex;align-items:center;gap:6px;}
+.csat-bg{width:60px;height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+.csat-fill{height:100%;border-radius:3px;}
+
+/* ── INSIGHTS ── */
+.ins-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:9px;margin-bottom:20px;}
+.ins-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:13px 15px;display:flex;gap:11px;align-items:flex-start;}
+.ins-icon{width:32px;height:32px;flex-shrink:0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+.ins-title{font-size:11px;font-weight:600;margin-bottom:3px;}
+.ins-text{font-size:11px;color:var(--t2);line-height:1.5;}
+
+/* ── HOURLY TABLE ── */
+.htbl thead th{font-size:9px;}
+.htbl tbody td{font-size:11px;padding:7px 12px;}
+.heat{display:inline-block;padding:2px 8px;border-radius:5px;font-family:var(--mono);font-size:10px;min-width:36px;text-align:center;}
+
+/* ── FOOTER ── */
+.footer{border-top:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;
+  font-size:10px;color:var(--t3);font-family:var(--mono);}
+
+/* ── LOADING ── */
+#loading{display:none;position:fixed;inset:0;background:rgba(7,16,31,.93);z-index:999;
+  align-items:center;justify-content:center;flex-direction:column;gap:14px;}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#loading p{color:var(--t2);font-size:13px;}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--green);
+  color:var(--green);padding:10px 16px;border-radius:9px;font-size:12px;font-family:var(--mono);
+  z-index:999;display:none;animation:fadein .2s;}
+@keyframes fadein{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+@media(max-width:900px){.r2,.r3,.r21,.r12{grid-template-columns:1fr;}}
+@media(max-width:600px){.main{padding:12px;}.kpi-grid{grid-template-columns:repeat(2,1fr);}.filters-bar{padding:8px 12px;}}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><p id="lmsg">Parsing data…</p></div>
+<div id="toast">✓ Copied to clipboard</div>
+
+<!-- UPLOAD -->
+<div id="upload-screen">
+  <div class="u-logo">▐ Call Analytics</div>
+  <h1 class="u-title">Call Analytics Dashboard</h1>
+  <p class="u-sub">Upload call records for instant insights — agents, queues,<br>hourly patterns and performance metrics.</p>
+  <div class="drop-zone" id="dz">
+    <input type="file" id="fi" accept=".csv,.xlsx,.xls,.json,.tsv,.txt">
+    <div class="drop-icon">📂</div>
+    <h3>Drop your file here</h3>
+    <p>or click to browse</p>
+  </div>
+  <div class="fmt-pills">
+    <span class="pill">.CSV</span><span class="pill">.XLSX</span><span class="pill">.XLS</span>
+    <span class="pill">.JSON</span><span class="pill">.TSV</span><span class="pill">.TXT</span>
+  </div>
+  <p id="u-err"></p>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="topbar">
+    <div class="tb-l">
+      <span class="tb-logo">▐ Calls</span>
+      <span class="tb-title">Analytics Dashboard</span>
+      <span class="tb-file" id="tb-fname">—</span>
+    </div>
+    <div class="tb-r">
+      <button class="btn" onclick="downloadCSV()" title="Download filtered data as CSV">⬇ Download Data</button>
+      <button class="btn" onclick="copyDeepLink()" title="Copy shareable link with current filters">🔗 Deep Link</button>
+      <button class="btn" onclick="resetAll()">↑ New File</button>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs-bar">
+    <div class="tab active" onclick="switchTab('overview')">📊 Overview</div>
+    <div class="tab" onclick="switchTab('hourly')">⏱ Hourly Breakdown</div>
+    <div class="tab" onclick="switchTab('agents')">👤 Agent Performance</div>
+    <div class="tab" onclick="switchTab('insights')">💡 AI Insights</div>
+  </div>
+
+  <!-- FILTERS (shared across tabs) -->
+  <div class="filters-bar">
+    <span class="fl">Filters</span>
+
+    <div class="fg fg-date">
+      <span class="fi">📅</span>
+      <input type="date" id="f-from" onchange="applyFilters()" title="From date">
+      <span class="date-sep">→</span>
+      <input type="date" id="f-to" onchange="applyFilters()" title="To date">
+    </div>
+
+    <div class="fg">
+      <span class="fi">🕐</span>
+      <select id="f-biz" onchange="applyFilters()">
+        <option value="">All Hours</option>
+        <option value="Yes">Business Hours</option>
+        <option value="No">Non-Business</option>
+      </select>
+    </div>
+
+    <div class="fg">
+      <span class="fi">↕</span>
+      <select id="f-dir" onchange="applyFilters()">
+        <option value="">All Directions</option>
+        <option value="incoming">Incoming</option>
+        <option value="outgoing">Outgoing</option>
+        <option value="Transfer">Transfer</option>
+        <option value="Warm Transfer">Warm Transfer</option>
+      </select>
+    </div>
+
+    <div class="fg">
+      <span class="fi">👤</span>
+      <select id="f-agent" onchange="applyFilters()"><option value="">All Agents</option></select>
+    </div>
+
+    <div class="fg">
+      <span class="fi">📋</span>
+      <select id="f-queue" onchange="applyFilters()"><option value="">All Queues</option></select>
+    </div>
+
+    <div class="fg">
+      <span class="fi">✅</span>
+      <select id="f-status" onchange="applyFilters()"><option value="">All Statuses</option></select>
+    </div>
+
+    <div class="fg">
+      <span class="fi">🏢</span>
+      <select id="f-team" onchange="applyFilters()"><option value="">All Teams</option></select>
+    </div>
+
+    <span class="f-count" id="fc" style="display:none"></span>
+    <button class="btn-clear" onclick="clearFilters()">✕ Clear</button>
+  </div>
+
+  <!-- ═══ TAB: OVERVIEW ═══ -->
+  <div class="tab-panel active" id="tab-overview">
+    <div class="main">
+      <div class="slabel">Overview <button class="copy-btn" onclick="copySection('kpi-grid','KPI Overview')">📋 Copy</button></div>
+      <div class="kpi-grid" id="kpi-grid"></div>
+
+      <div class="slabel">Call Volume <button class="copy-btn" onclick="copySection('vol-section','Call Volume')">📋 Copy</button></div>
+      <div id="vol-section">
+        <div class="row r21" style="margin-bottom:12px;">
+          <div class="cc">
+            <div class="cc-head">
+              <div class="cc-head-l"><div class="ct">Hourly Incoming — Business vs Non-Business</div><div class="cd">Stacked by hour · incoming only</div></div>
+              <div class="cc-actions"><span class="ctag">HOURLY</span><button class="copy-btn" onclick="copyChart('c-hourly')">📋</button></div>
+            </div>
+            <div class="cw-lg"><canvas id="c-hourly"></canvas></div>
+          </div>
+          <div class="cc">
+            <div class="cc-head">
+              <div class="cc-head-l"><div class="ct">Total Influx</div><div class="cd">All directions breakdown</div></div>
+              <div class="cc-actions"><span class="ctag">INFLUX</span><button class="copy-btn" onclick="copyChart('c-influx')">📋</button></div>
+            </div>
+            <div class="cw-lg"><canvas id="c-influx"></canvas></div>
+          </div>
+        </div>
+
+        <div class="row r3" style="margin-bottom:12px;">
+          <div class="cc">
+            <div class="cc-head"><div class="cc-head-l"><div class="ct">Call Status</div><div class="cd">Answered · Abandoned · Unanswered</div></div>
+              <button class="copy-btn" onclick="copyChart('c-status')">📋</button></div>
+            <div class="cw"><canvas id="c-status"></canvas></div>
+          </div>
+          <div class="cc">
+            <div class="cc-head"><div class="cc-head-l"><div class="ct">Queue Distribution</div><div class="cd">Volume per queue</div></div>
+              <button class="copy-btn" onclick="copyChart('c-queue')">📋</button></div>
+            <div class="cw"><canvas id="c-queue"></canvas></div>
+          </div>
+          <div class="cc">
+            <div class="cc-head"><div class="cc-head-l"><div class="ct">Daily Trend</div><div class="cd">Calls per day</div></div>
+              <button class="copy-btn" onclick="copyChart('c-daily')">📋</button></div>
+            <div class="cw"><canvas id="c-daily"></canvas></div>
+          </div>
+        </div>
+
+        <div class="row r2" style="margin-bottom:0;">
+          <div class="cc">
+            <div class="cc-head"><div class="cc-head-l"><div class="ct">Team Distribution</div><div class="cd">Calls per team</div></div>
+              <button class="copy-btn" onclick="copyChart('c-team')">📋</button></div>
+            <div class="cw"><canvas id="c-team"></canvas></div>
+          </div>
+          <div class="cc">
+            <div class="cc-head"><div class="cc-head-l"><div class="ct">Business Hours Split</div><div class="cd">In-hours vs after-hours</div></div>
+              <button class="copy-btn" onclick="copyChart('c-biz')">📋</button></div>
+            <div class="cw"><canvas id="c-biz"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: HOURLY BREAKDOWN ═══ -->
+  <div class="tab-panel" id="tab-hourly">
+    <div class="main">
+
+      <div class="slabel">Hourly Queue Breakdown <button class="copy-btn" onclick="copySection('queue-hourly-section','Queue Hourly')">📋 Copy</button></div>
+      <div id="queue-hourly-section">
+        <div class="row r2" style="margin-bottom:12px;">
+          <div class="cc">
+            <div class="cc-head">
+              <div class="cc-head-l"><div class="ct">All Queues — Hourly Volume</div><div class="cd">Total calls per hour across all queues</div></div>
+              <div class="cc-actions"><span class="ctag">ALL QUEUES</span><button class="copy-btn" onclick="copyChart('c-hq-all')">📋</button></div>
+            </div>
+            <div class="cw-lg"><canvas id="c-hq-all"></canvas></div>
+          </div>
+          <div class="cc">
+            <div class="cc-head">
+              <div class="cc-head-l"><div class="ct">Queue Heatmap — Hour vs Status</div><div class="cd">Answered vs Abandoned by hour</div></div>
+              <div class="cc-actions"><span class="ctag">HEATMAP</span><button class="copy-btn" onclick="copyChart('c-hq-status')">📋</button></div>
+            </div>
+            <div class="cw-lg"><canvas id="c-hq-status"></canvas></div>
+          </div>
+        </div>
+        <div class="tbl-card">
+          <div class="tbl-head">
+            <div><div class="tbl-title">Queue × Hour Table</div><div class="tbl-desc">Call volume per queue per hour of day</div></div>
+            <div class="tbl-head-r">
+              <button class="copy-btn" onclick="copyTable('queue-hour-tbl','Queue Hourly Table')">📋 Copy Table</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;"><table id="queue-hour-tbl" class="htbl"></table></div>
+        </div>
+      </div>
+
+      <div class="slabel">Hourly Agent Performance <button class="copy-btn" onclick="copySection('agent-hourly-section','Agent Hourly')">📋 Copy</button></div>
+      <div id="agent-hourly-section">
+        <div class="row r2" style="margin-bottom:12px;">
+          <div class="cc">
+            <div class="cc-head">
+              <div class="cc-head-l"><div class="ct">Agent Call Volume by Hour</div><div class="cd">Top agents stacked per hour</div></div>
+              <div class="cc-actions"><span class="ctag">AGENTS</span><button class="copy-btn" onclick="copyChart('c-ha-vol')">📋</button></div>
+            </div>
+            <div class="cw-xl"><canvas id="c-ha-vol"></canvas></div>
+          </div>
+          <div class="cc">
+            <div class="cc-head">
+              <div class="cc-head-l"><div class="ct">Agent AHT by Hour</div><div class="cd">Average handle time per hour for answered calls</div></div>
+              <div class="cc-actions"><span class="ctag">AHT</span><button class="copy-btn" onclick="copyChart('c-ha-aht')">📋</button></div>
+            </div>
+            <div class="cw-xl"><canvas id="c-ha-aht"></canvas></div>
+          </div>
+        </div>
+        <div class="tbl-card">
+          <div class="tbl-head">
+            <div><div class="tbl-title">Agent × Hour Table</div><div class="tbl-desc">Calls handled per agent per hour</div></div>
+            <div class="tbl-head-r">
+              <input class="tbl-search" id="ah-search" type="text" placeholder="🔍 Filter agent…" oninput="filterAHTable()">
+              <button class="copy-btn" onclick="copyTable('agent-hour-tbl','Agent Hourly Table')">📋 Copy Table</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;"><table id="agent-hour-tbl" class="htbl"></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: AGENT PERFORMANCE ═══ -->
+  <div class="tab-panel" id="tab-agents">
+    <div class="main">
+      <div class="slabel">Agent Performance Summary
+        <button class="copy-btn" onclick="copyTable('agent-tbl','Agent Performance')">📋 Copy Table</button>
+      </div>
+      <div class="tbl-card">
+        <div class="tbl-head">
+          <div><div class="tbl-title">Agent-wise Breakdown</div>
+            <div class="tbl-desc">Total · Answered · Abandoned · AHT · Talk Time · ACW · CSAT (positive surveys ÷ total surveys)</div></div>
+          <div class="tbl-head-r">
+            <input class="tbl-search" id="agent-search" type="text" placeholder="🔍 Search agent…" oninput="filterAgentTable()">
+            <button class="copy-btn" onclick="copyTable('agent-tbl','Agent Performance')">📋 Copy</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table id="agent-tbl">
+            <thead id="agent-thead">
+              <tr>
+                <th onclick="sortBy('name')">Agent</th>
+                <th onclick="sortBy('team')">Team</th>
+                <th onclick="sortBy('total')">Total</th>
+                <th onclick="sortBy('inc')">Incoming</th>
+                <th onclick="sortBy('out')">Outgoing</th>
+                <th onclick="sortBy('ans')">Answered</th>
+                <th onclick="sortBy('abn')">Abandoned</th>
+                <th onclick="sortBy('ansRate')">Ans%</th>
+                <th onclick="sortBy('ahtSec')">AHT</th>
+                <th onclick="sortBy('talkSec')">Talk Time</th>
+                <th onclick="sortBy('acwSec')">ACW</th>
+                <th onclick="sortBy('csatPct')">CSAT%</th>
+                <th onclick="sortBy('csatCount')">Surveys</th>
+              </tr>
+            </thead>
+            <tbody id="agent-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="slabel" style="margin-top:16px;">Agent CSAT Detail
+        <button class="copy-btn" onclick="copyTable('csat-tbl','CSAT Detail')">📋 Copy Table</button>
+      </div>
+      <div class="tbl-card">
+        <div style="overflow-x:auto;">
+          <table id="csat-tbl">
+            <thead>
+              <tr>
+                <th>Agent</th><th>Team</th><th>Total Surveys</th>
+                <th>Positive (1)</th><th>Negative (2)</th>
+                <th>No Response</th><th>CSAT %</th>
+              </tr>
+            </thead>
+            <tbody id="csat-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: AI INSIGHTS ═══ -->
+  <div class="tab-panel" id="tab-insights">
+    <div class="main">
+      <div class="slabel">AI-Generated Insights
+        <button class="copy-btn" onclick="copySection('insights-grid','AI Insights')">📋 Copy</button>
+      </div>
+      <div class="ins-grid" id="insights-grid"></div>
+
+      <div class="slabel" style="margin-top:4px;">Abandoned Call Analysis
+        <button class="copy-btn" onclick="copyTable('abn-tbl','Abandoned Analysis')">📋 Copy</button>
+      </div>
+      <div class="tbl-card">
+        <div style="overflow-x:auto;">
+          <table id="abn-tbl">
+            <thead>
+              <tr>
+                <th>Queue</th><th>Team</th><th>Total Abandoned</th>
+                <th>Wait Queue</th><th>Call Queue</th><th>Ringing</th><th>Voicemail</th><th>Short Abandon</th>
+              </tr>
+            </thead>
+            <tbody id="abn-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span id="f-total">—</span>
+    <span id="f-status-bar">—</span>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// COLUMN MAP
+// ══════════════════════════════════════════════
+const COL = {
+  direction:'Direction', agent:'Agent Name', queue:'Call Queue Name',
+  status:'Call Status', team:'Team Name', biz:'In Business Hours',
+  date:'Date', talkTime:'Talk Time', handleTime:'Handle Time',
+  acwTime:'After Call Work Time', waitTime:'Wait Time',
+  csatOutcome:'Csat Outcome', csatMade:'Csat Transfer Made',
+  abandonType:'Abandoned Type', shortAban:'Short Abandon', callCost:'Call Cost'
+};
+
+function resolveColumns(headers){
+  const res={...COL};
+  const hl=headers.map(h=>h.toLowerCase().replace(/\s+/g,''));
+  const fb={
+    direction:['direction','calltype','flow'],
+    agent:['agentname','agent','operator','rep'],
+    queue:['callqueuename','queue','skillgroup'],
+    status:['callstatus','status','disposition'],
+    team:['teamname','team','department'],
+    biz:['inbusinesshours','businesshours'],
+    date:['date','datetime','timestamp','calldate'],
+    talkTime:['talktime','talkseconds'],
+    handleTime:['handletime','handleduration'],
+    acwTime:['aftercallworktime','acw'],
+    waitTime:['waittime','holdtime'],
+    csatOutcome:['csatoutcome','csat','rating'],
+    shortAban:['shortabandon','shortabn'],
+    callCost:['callcost','cost']
+  };
+  for(const[k,pref]of Object.entries(COL)){
+    if(!headers.includes(pref)){
+      const cands=fb[k]||[];
+      const idx=hl.findIndex(h=>cands.some(c=>h===c||h.includes(c)));
+      if(idx!==-1) res[k]=headers[idx];
+    }
+  }
+  return res;
+}
+
+// ══════════════════════════════════════════════
+// GLOBALS
+// ══════════════════════════════════════════════
+let raw=[], filtered=[], agentStats=[], C={...COL};
+let charts={}, sortKey='total', sortDir=-1;
+let rawFileName='';
+
+// ══════════════════════════════════════════════
+// UPLOAD
+// ══════════════════════════════════════════════
+const dz=document.getElementById('dz'), fi=document.getElementById('fi');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');handle(e.dataTransfer.files[0]);});
+fi.addEventListener('change',e=>handle(e.target.files[0]));
+
+function handle(file){
+  if(!file) return; rawFileName=file.name;
+  loading(true);
+  const ext=file.name.split('.').pop().toLowerCase();
+  const reader=new FileReader();
+  if(['xlsx','xls'].includes(ext)){
+    reader.onload=e=>{
+      try{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];
+        boot(XLSX.utils.sheet_to_json(ws,{defval:''}),file.name);}
+      catch(e){err('Excel parse error: '+e.message);}
+    }; reader.readAsArrayBuffer(file);
+  } else if(ext==='json'){
+    reader.onload=e=>{try{let j=JSON.parse(e.target.result);if(!Array.isArray(j))j=Object.values(j)[0]||[j];boot(j,file.name);}
+      catch(e){err('JSON parse error');}};
+    reader.readAsText(file);
+  } else {
+    reader.onload=e=>{const r=Papa.parse(e.target.result,{header:true,skipEmptyLines:true,
+      delimiter:ext==='tsv'?'\t':undefined,dynamicTyping:false});boot(r.data,file.name);};
+    reader.readAsText(file);
+  }
+}
+
+function loading(v,msg='Parsing data…'){
+  document.getElementById('loading').style.display=v?'flex':'none';
+  document.getElementById('lmsg').textContent=msg;
+}
+function err(msg){loading(false);const el=document.getElementById('u-err');el.textContent='⚠ '+msg;el.style.display='block';}
+
+// ══════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════
+function boot(data, fname){
+  if(!data||!data.length){err('No data rows found.');return;}
+  const headers=Object.keys(data[0]);
+  C=resolveColumns(headers);
+  raw=data.map(r=>{
+    const ts=parseDate(r[C.date]);
+    const dir=String(r[C.direction]||'').trim().toLowerCase();
+    return{...r,
+      _ts:ts,
+      _hour:ts?ts.getHours():null,
+      _dateStr:ts?ts.toISOString().split('T')[0]:null,
+      _biz:String(r[C.biz]||'').trim(),
+      _dir:dir,
+      _talkSec:hhmmss(r[C.talkTime]),
+      _handleSec:hhmmss(r[C.handleTime]),
+      _acwSec:hhmmss(r[C.acwTime]),
+      _waitSec:hhmmss(r[C.waitTime]),
+    };
+  });
+
+  // Set date filter defaults from data
+  const dates=raw.map(r=>r._dateStr).filter(Boolean).sort();
+  if(dates.length){
+    document.getElementById('f-from').value=dates[0];
+    document.getElementById('f-to').value=dates[dates.length-1];
+  }
+
+  populateFilters();
+  applyFilters();
+
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+  document.getElementById('tb-fname').textContent=fname;
+  loading(false);
+
+  // Check URL params for deep link
+  restoreFromURL();
+}
+
+function parseDate(v){
+  if(!v) return null;
+  if(v instanceof Date) return v;
+  const d=new Date(String(v).trim());
+  return isNaN(d)?null:d;
+}
+
+function hhmmss(v){
+  if(!v) return 0;
+  const s=String(v).trim();
+  if(!s||s==='-'||s==='—') return 0;
+  const parts=s.split(':').map(Number);
+  if(parts.length===3){if(parts[0]===23&&parts[1]===59&&parts[2]===59) return 0;return parts[0]*3600+parts[1]*60+parts[2];}
+  if(parts.length===2) return parts[0]*60+parts[1];
+  return parseFloat(s)||0;
+}
+function uniq(arr){return[...new Set(arr.filter(v=>v&&v!=='-').map(String))].sort();}
+
+function populateFilters(){
+  fill('f-agent',uniq(raw.map(r=>r[C.agent])));
+  fill('f-queue',uniq(raw.map(r=>r[C.queue])));
+  fill('f-status',uniq(raw.map(r=>r[C.status])));
+  fill('f-team',uniq(raw.map(r=>r[C.team])));
+}
+function fill(id,vals){
+  const sel=document.getElementById(id);
+  const first=sel.options[0]; sel.innerHTML=''; sel.appendChild(first);
+  vals.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
+}
+
+// ══════════════════════════════════════════════
+// FILTERS
+// ══════════════════════════════════════════════
+function gv(id){return document.getElementById(id).value;}
+
+function applyFilters(){
+  const fromVal=gv('f-from'), toVal=gv('f-to');
+  const biz=gv('f-biz'), dir=gv('f-dir'), agent=gv('f-agent'),
+        queue=gv('f-queue'), status=gv('f-status'), team=gv('f-team');
+
+  filtered=raw.filter(r=>{
+    if(fromVal&&r._dateStr&&r._dateStr<fromVal) return false;
+    if(toVal&&r._dateStr&&r._dateStr>toVal) return false;
+    if(biz&&r._biz!==biz) return false;
+    if(dir&&r._dir!==dir.toLowerCase()) return false;
+    if(agent&&String(r[C.agent])!==agent) return false;
+    if(queue&&String(r[C.queue])!==queue) return false;
+    if(status&&String(r[C.status])!==status) return false;
+    if(team&&String(r[C.team])!==team) return false;
+    return true;
+  });
+
+  const active=[fromVal,toVal,biz,dir,agent,queue,status,team].filter(Boolean).length;
+  const fc=document.getElementById('fc');
+  if(active){fc.textContent=active+' filter'+(active>1?'s':'')+' active';fc.style.display='inline';}
+  else fc.style.display='none';
+
+  document.getElementById('f-total').textContent=raw.length.toLocaleString()+' rows total';
+  document.getElementById('f-status-bar').textContent=filtered.length.toLocaleString()+' shown · '+new Date().toLocaleTimeString();
+
+  updateURL();
+  render();
+}
+
+function clearFilters(){
+  ['f-biz','f-dir','f-agent','f-queue','f-status','f-team'].forEach(id=>document.getElementById(id).value='');
+  const dates=raw.map(r=>r._dateStr).filter(Boolean).sort();
+  if(dates.length){document.getElementById('f-from').value=dates[0];document.getElementById('f-to').value=dates[dates.length-1];}
+  applyFilters();
+}
+
+// ══════════════════════════════════════════════
+// URL DEEP LINK
+// ══════════════════════════════════════════════
+function updateURL(){
+  const params=new URLSearchParams();
+  const ids=['f-from','f-to','f-biz','f-dir','f-agent','f-queue','f-status','f-team'];
+  const keys=['from','to','biz','dir','agent','queue','status','team'];
+  ids.forEach((id,i)=>{const v=gv(id);if(v) params.set(keys[i],v);});
+  const newURL=window.location.pathname+(params.toString()?'?'+params.toString():'');
+  history.replaceState(null,'',newURL);
+}
+
+function restoreFromURL(){
+  const params=new URLSearchParams(window.location.search);
+  const map={from:'f-from',to:'f-to',biz:'f-biz',dir:'f-dir',agent:'f-agent',queue:'f-queue',status:'f-status',team:'f-team'};
+  let changed=false;
+  for(const[k,id]of Object.entries(map)){
+    if(params.has(k)){document.getElementById(id).value=params.get(k);changed=true;}
+  }
+  if(changed) applyFilters();
+}
+
+function copyDeepLink(){
+  navigator.clipboard.writeText(window.location.href).then(()=>toast('🔗 Deep link copied!'));
+}
+
+// ══════════════════════════════════════════════
+// DOWNLOAD CSV
+// ══════════════════════════════════════════════
+function downloadCSV(){
+  if(!filtered.length){toast('No data to download');return;}
+  const keys=Object.keys(raw[0]).filter(k=>!k.startsWith('_'));
+  const rows=[keys.join(','),...filtered.map(r=>keys.map(k=>{
+    const v=String(r[k]||'').replace(/"/g,'""');
+    return v.includes(',')||v.includes('"')||v.includes('\n')?`"${v}"`:v;
+  }).join(','))];
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='calls_filtered_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('⬇ Downloaded filtered data ('+filtered.length+' rows)');
+}
+
+// ══════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════
+function render(){
+  computeAgents();
+  renderKPIs();
+  renderHourly(); renderInflux(); renderStatus(); renderQueue(); renderDaily(); renderTeam(); renderBiz();
+  renderQueueHourly();
+  renderAgentHourly();
+  renderAgentTable(); renderCSATTable();
+  renderInsights(); renderAbandonTable();
+}
+
+// ══════════════════════════════════════════════
+// AGENT STATS — with correct CSAT logic
+// ══════════════════════════════════════════════
+function computeAgents(){
+  const map={};
+  filtered.forEach(r=>{
+    const name=String(r[C.agent]||'Unknown');
+    const team=String(r[C.team]||'—');
+    if(!map[name]) map[name]={name,team,total:0,inc:0,out:0,xfer:0,
+      ans:0,abn:0,unans:0,talkSec:0,handleSec:0,acwSec:0,
+      csatPos:0,csatNeg:0,csatTotal:0,csatNoResp:0,cost:0};
+    const m=map[name];
+    m.total++;
+    if(r._dir==='incoming') m.inc++;
+    else if(r._dir==='outgoing') m.out++;
+    else m.xfer++;
+    const st=String(r[C.status]||'');
+    if(st==='Answered') m.ans++;
+    else if(st==='Abandoned') m.abn++;
+    else m.unans++;
+    m.talkSec+=r._talkSec;
+    m.handleSec+=r._handleSec;
+    m.acwSec+=r._acwSec;
+    // CSAT: 1=positive, 2=negative, anything else=no response
+    const csat=String(r[C.csatOutcome]||'').trim();
+    if(csat==='1'){m.csatPos++;m.csatTotal++;}
+    else if(csat==='2'){m.csatNeg++;m.csatTotal++;}
+    else if(csat==='No Response'||csat==='') m.csatNoResp++;
+    m.cost+=parseFloat(r[C.callCost]||0)||0;
+  });
+
+  agentStats=Object.values(map).map(m=>({
+    ...m,
+    ahtSec:m.ans?Math.round(m.handleSec/m.ans):0,
+    ansRate:m.total?Math.round(m.ans/m.total*100):0,
+    // CSAT% = positive / total surveys received (1+2 only)
+    csatPct:m.csatTotal?Math.round(m.csatPos/m.csatTotal*100):null,
+  }));
+}
+
+function fmtDur(sec){
+  if(!sec) return '—';
+  if(sec>=3600){const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60);return h+'h '+m+'m';}
+  const m=Math.floor(sec/60),s=Math.round(sec%60);
+  return m+'m '+(s<10?'0':'')+s+'s';
+}
+function fmt12(h){return h===0?'12am':h<12?h+'am':h===12?'12pm':(h-12)+'pm';}
+
+// ══════════════════════════════════════════════
+// KPIs
+// ══════════════════════════════════════════════
+function renderKPIs(){
+  const d=filtered, total=d.length;
+  const inc=d.filter(r=>r._dir==='incoming').length;
+  const out=d.filter(r=>r._dir==='outgoing').length;
+  const xfer=d.filter(r=>r._dir==='transfer'||r._dir==='warm transfer').length;
+  const biz=d.filter(r=>r._biz==='Yes').length;
+  const nonBiz=d.filter(r=>r._biz==='No').length;
+  // Abandoned = only those with a real Team assigned (matches your report's 36)
+  const ans=d.filter(r=>String(r[C.status])==='Answered').length;
+  const abnAll=d.filter(r=>String(r[C.status])==='Abandoned');
+  const abnReal=abnAll.filter(r=>r[C.team]&&r[C.team]!=='-'&&r[C.team]!=='').length;
+  const ansRate=total?Math.round(ans/total*100):0;
+  const talkSec=d.reduce((a,r)=>a+r._talkSec,0);
+  const handleSec=d.reduce((a,r)=>a+r._handleSec,0);
+  const aht=ans?Math.round(handleSec/ans):0;
+  const agents=new Set(d.map(r=>r[C.agent]).filter(Boolean)).size;
+  // CSAT overall
+  const csatPos=d.filter(r=>String(r[C.csatOutcome]).trim()==='1').length;
+  const csatTotal=d.filter(r=>['1','2'].includes(String(r[C.csatOutcome]).trim())).length;
+  const csatPct=csatTotal?Math.round(csatPos/csatTotal*100):null;
+  const totalCost=d.reduce((a,r)=>a+(parseFloat(r[C.callCost])||0),0);
+
+  const kpis=[
+    {l:'Total Calls',v:total.toLocaleString(),s:`${inc} in · ${out} out · ${xfer} xfer`,c:'var(--accent)'},
+    {l:'Incoming',v:inc.toLocaleString(),s:total?Math.round(inc/total*100)+'% of total':'—',c:'var(--cyan)'},
+    {l:'Outgoing',v:out.toLocaleString(),s:total?Math.round(out/total*100)+'% of total':'—',c:'var(--purple)'},
+    {l:'Answered',v:ans.toLocaleString(),s:ansRate+'% answer rate',c:'var(--green)'},
+    {l:'Abandoned',v:abnReal.toLocaleString(),s:abnAll.length+' total ('+abnReal+' team-assigned)',c:'var(--red)',
+      title:'Counts abandoned calls where a Team is assigned — matching your report logic'},
+    {l:'Avg Handle Time',v:fmtDur(aht),s:'per answered call',c:'var(--orange)'},
+    {l:'Total Talk Time',v:fmtDur(talkSec),s:'across all calls',c:'var(--cyan)'},
+    {l:'Business Hours',v:biz.toLocaleString(),s:nonBiz+' non-business',c:'var(--accent)'},
+    {l:'Active Agents',v:agents,s:'unique agents',c:'var(--purple)'},
+    ...(csatPct!==null?[{l:'CSAT',v:csatPct+'%',s:`${csatPos}/${csatTotal} surveys positive`,c:'var(--green)'}]:[]),
+    ...(totalCost>0?[{l:'Call Cost',v:'$'+totalCost.toFixed(2),s:'billing total',c:'var(--orange)'}]:[]),
+  ];
+
+  document.getElementById('kpi-grid').innerHTML=kpis.map(k=>`
+    <div class="kpi" style="--c:${k.c}" title="${k.title||''}">
+      <div class="kpi-label">${k.l}</div>
+      <div class="kpi-value">${k.v}</div>
+      <div class="kpi-sub">${k.s}</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// CHARTS
+// ══════════════════════════════════════════════
+const PAL=['#3b82f6','#06b6d4','#8b5cf6','#10b981','#f59e0b','#ef4444','#ec4899','#84cc16','#14b8a6','#f97316','#a78bfa','#34d399'];
+const BOPTS={responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{labels:{color:'#94a3b8',font:{size:10},boxWidth:10}}},
+  scales:{x:{ticks:{color:'#475569',font:{size:10}},grid:{color:'#1c2d44'}},
+          y:{ticks:{color:'#475569',font:{size:10}},grid:{color:'#1c2d44'},beginAtZero:true}}};
+
+function dc(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function getCtx(id){dc(id);const c=document.getElementById(id);if(!c)return null;return c.getContext('2d');}
+
+function renderHourly(){
+  const c=getCtx('c-hourly');if(!c)return;
+  const bH=new Array(24).fill(0),nH=new Array(24).fill(0);
+  filtered.filter(r=>r._dir==='incoming').forEach(r=>{
+    if(r._hour===null)return;
+    if(r._biz==='Yes')bH[r._hour]++;else nH[r._hour]++;
+  });
+  const labels=Array.from({length:24},(_,i)=>fmt12(i));
+  charts['c-hourly']=new Chart(c,{type:'bar',
+    data:{labels,datasets:[
+      {label:'Business Hours',data:bH,backgroundColor:'rgba(59,130,246,.75)',borderRadius:3,stack:'s'},
+      {label:'Non-Business',data:nH,backgroundColor:'rgba(139,92,246,.65)',borderRadius:3,stack:'s'},
+    ]},
+    options:{...BOPTS,scales:{
+      x:{stacked:true,ticks:{color:'#475569',font:{size:9}},grid:{color:'#1c2d44'}},
+      y:{stacked:true,ticks:{color:'#475569',font:{size:10}},grid:{color:'#1c2d44'},beginAtZero:true}}}});
+}
+
+function renderInflux(){
+  const c=getCtx('c-influx');if(!c)return;
+  const inc=filtered.filter(r=>r._dir==='incoming').length;
+  const out=filtered.filter(r=>r._dir==='outgoing').length;
+  const xfer=filtered.filter(r=>r._dir==='transfer').length;
+  const warm=filtered.filter(r=>r._dir==='warm transfer').length;
+  const labels=['Incoming','Outgoing'],vals=[inc,out],colors=['#06b6d4','#8b5cf6'];
+  if(xfer){labels.push('Transfer');vals.push(xfer);colors.push('#f59e0b');}
+  if(warm){labels.push('Warm Transfer');vals.push(warm);colors.push('#10b981');}
+  charts['c-influx']=new Chart(c,{type:'doughnut',
+    data:{labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:0,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',font:{size:10},boxWidth:8,padding:8}}}}});
+}
+
+function renderStatus(){
+  const c=getCtx('c-status');if(!c)return;
+  const counts={};
+  filtered.forEach(r=>{const s=String(r[C.status]||'Unknown');counts[s]=(counts[s]||0)+1;});
+  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  charts['c-status']=new Chart(c,{type:'doughnut',
+    data:{labels:sorted.map(x=>x[0]),datasets:[{data:sorted.map(x=>x[1]),backgroundColor:PAL,borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
+      plugins:{legend:{position:'right',labels:{color:'#94a3b8',font:{size:9},boxWidth:8,padding:6}}}}});
+}
+
+function renderQueue(){
+  const c=getCtx('c-queue');if(!c)return;
+  const counts={};
+  filtered.forEach(r=>{const q=String(r[C.queue]||'?');if(q!=='-')counts[q]=(counts[q]||0)+1;});
+  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  charts['c-queue']=new Chart(c,{type:'bar',
+    data:{labels:sorted.map(x=>x[0]),datasets:[{label:'Calls',data:sorted.map(x=>x[1]),backgroundColor:'#06b6d4',borderRadius:3}]},
+    options:{...BOPTS,indexAxis:'y',plugins:{legend:{display:false}},
+      scales:{x:{...BOPTS.scales.x,beginAtZero:true},y:{ticks:{color:'#475569',font:{size:9}},grid:{color:'transparent'}}}}});
+}
+
+function renderDaily(){
+  const c=getCtx('c-daily');if(!c)return;
+  const counts={};
+  filtered.forEach(r=>{if(!r._dateStr)return;counts[r._dateStr]=(counts[r._dateStr]||0)+1;});
+  const sorted=Object.entries(counts).sort((a,b)=>a[0].localeCompare(b[0]));
+  if(!sorted.length){const p=document.getElementById('c-daily').parentElement;p.innerHTML='<div class="no-data">No date data</div>';return;}
+  charts['c-daily']=new Chart(c,{type:'line',
+    data:{labels:sorted.map(x=>x[0].slice(5)),
+      datasets:[{label:'Calls',data:sorted.map(x=>x[1]),borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.1)',fill:true,tension:.4,pointRadius:3}]},
+    options:{...BOPTS,plugins:{legend:{display:false}}}});
+}
+
+function renderTeam(){
+  const c=getCtx('c-team');if(!c)return;
+  const counts={};
+  filtered.forEach(r=>{const t=String(r[C.team]||'—');if(t!=='-')counts[t]=(counts[t]||0)+1;});
+  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  if(!sorted.length)return;
+  charts['c-team']=new Chart(c,{type:'bar',
+    data:{labels:sorted.map(x=>x[0]),datasets:[{data:sorted.map(x=>x[1]),backgroundColor:PAL.slice(0,sorted.length),borderRadius:4}]},
+    options:{...BOPTS,plugins:{legend:{display:false}}}});
+}
+
+function renderBiz(){
+  const c=getCtx('c-biz');if(!c)return;
+  const biz=filtered.filter(r=>r._biz==='Yes').length;
+  const non=filtered.filter(r=>r._biz==='No').length;
+  const none=filtered.filter(r=>!r._biz||r._biz==='-').length;
+  const labels=['Business Hours','Non-Business'],vals=[biz,non],colors=['#3b82f6','#8b5cf6'];
+  if(none){labels.push('No Data');vals.push(none);colors.push('#475569');}
+  charts['c-biz']=new Chart(c,{type:'doughnut',
+    data:{labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:0,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',font:{size:10},boxWidth:8,padding:8}}}}});
+}
+
+// ══════════════════════════════════════════════
+// HOURLY TAB — Queue Breakdown
+// ══════════════════════════════════════════════
+function renderQueueHourly(){
+  // Chart 1: All queues total per hour
+  const c1=getCtx('c-hq-all');
+  if(c1){
+    const hc=new Array(24).fill(0);
+    filtered.forEach(r=>{if(r._hour!==null)hc[r._hour]++;});
+    const labels=Array.from({length:24},(_,i)=>fmt12(i));
+    charts['c-hq-all']=new Chart(c1,{type:'bar',
+      data:{labels,datasets:[{label:'Total Calls',data:hc,backgroundColor:'rgba(59,130,246,.7)',borderRadius:3}]},
+      options:{...BOPTS,plugins:{legend:{display:false}}}});
+  }
+
+  // Chart 2: Answered vs Abandoned by hour
+  const c2=getCtx('c-hq-status');
+  if(c2){
+    const ans=new Array(24).fill(0),abn=new Array(24).fill(0);
+    filtered.forEach(r=>{
+      if(r._hour===null)return;
+      if(String(r[C.status])==='Answered') ans[r._hour]++;
+      else if(String(r[C.status])==='Abandoned') abn[r._hour]++;
+    });
+    const labels=Array.from({length:24},(_,i)=>fmt12(i));
+    charts['c-hq-status']=new Chart(c2,{type:'bar',
+      data:{labels,datasets:[
+        {label:'Answered',data:ans,backgroundColor:'rgba(16,185,129,.7)',borderRadius:3,stack:'s'},
+        {label:'Abandoned',data:abn,backgroundColor:'rgba(239,68,68,.7)',borderRadius:3,stack:'s'},
+      ]},
+      options:{...BOPTS,scales:{
+        x:{stacked:true,ticks:{color:'#475569',font:{size:9}},grid:{color:'#1c2d44'}},
+        y:{stacked:true,ticks:{color:'#475569',font:{size:10}},grid:{color:'#1c2d44'},beginAtZero:true}}}});
+  }
+
+  // Queue × Hour Table
+  const queues=uniq(filtered.map(r=>r[C.queue]).filter(q=>q&&q!=='-'));
+  const hours=Array.from({length:24},(_,i)=>i).filter(h=>filtered.some(r=>r._hour===h));
+  const qhMap={};
+  filtered.forEach(r=>{
+    const q=String(r[C.queue]||'');if(!q||q==='-')return;
+    if(!qhMap[q]) qhMap[q]=new Array(24).fill(0);
+    if(r._hour!==null) qhMap[q][r._hour]++;
+  });
+
+  const hdrRow=`<thead><tr><th>Queue</th>${hours.map(h=>`<th>${fmt12(h)}</th>`).join('')}<th>Total</th></tr></thead>`;
+  const maxVal=Math.max(...Object.values(qhMap).flat(),1);
+  const bodyRows=queues.map(q=>{
+    const row=qhMap[q]||new Array(24).fill(0);
+    const rowTotal=hours.reduce((a,h)=>a+row[h],0);
+    return`<tr><td style="font-weight:500;color:var(--text)">${q}</td>${hours.map(h=>{
+      const v=row[h]||0;
+      const intensity=v/maxVal;
+      const bg=v>0?`rgba(59,130,246,${0.1+intensity*0.6})`:'transparent';
+      const col=v>0&&intensity>0.5?'var(--text)':'var(--t2)';
+      return`<td><span class="heat" style="background:${bg};color:${col}">${v||''}</span></td>`;
+    }).join('')}<td style="font-weight:600;color:var(--accent)">${rowTotal}</td></tr>`;
+  }).join('');
+  const tbl=document.getElementById('queue-hour-tbl');
+  if(tbl) tbl.innerHTML=hdrRow+'<tbody>'+bodyRows+'</tbody>';
+}
+
+// ══════════════════════════════════════════════
+// HOURLY TAB — Agent Hourly
+// ══════════════════════════════════════════════
+function renderAgentHourly(){
+  // Real agents only (those with team assigned or actual human names with answered calls)
+  const realAgents=agentStats.filter(a=>a.ans>0||a.total>3).map(a=>a.name).slice(0,12);
+
+  // Chart: Agent volume by hour (stacked)
+  const c1=getCtx('c-ha-vol');
+  if(c1&&realAgents.length){
+    const hours=Array.from({length:24},(_,i)=>fmt12(i));
+    const datasets=realAgents.map((ag,i)=>{
+      const hd=new Array(24).fill(0);
+      filtered.filter(r=>String(r[C.agent])===ag).forEach(r=>{if(r._hour!==null)hd[r._hour]++;});
+      return{label:ag,data:hd,backgroundColor:PAL[i%PAL.length],borderRadius:2,stack:'s'};
+    });
+    charts['c-ha-vol']=new Chart(c1,{type:'bar',
+      data:{labels:hours,datasets},
+      options:{...BOPTS,
+        plugins:{legend:{labels:{color:'#94a3b8',font:{size:9},boxWidth:8,padding:6}}},
+        scales:{x:{stacked:true,ticks:{color:'#475569',font:{size:9}},grid:{color:'#1c2d44'}},
+                y:{stacked:true,ticks:{color:'#475569',font:{size:10}},grid:{color:'#1c2d44'},beginAtZero:true}}}});
+  }
+
+  // Chart: Agent AHT by hour (line)
+  const c2=getCtx('c-ha-aht');
+  if(c2&&realAgents.length){
+    const hours=Array.from({length:24},(_,i)=>fmt12(i));
+    const datasets=realAgents.map((ag,i)=>{
+      const hAHT=new Array(24).fill(null);
+      for(let h=0;h<24;h++){
+        const calls=filtered.filter(r=>String(r[C.agent])===ag&&r._hour===h&&String(r[C.status])==='Answered');
+        if(calls.length){const avgSec=calls.reduce((a,r)=>a+r._handleSec,0)/calls.length;hAHT[h]=Math.round(avgSec/60*10)/10;}
+      }
+      return{label:ag,data:hAHT,borderColor:PAL[i%PAL.length],backgroundColor:'transparent',
+        tension:.3,pointRadius:3,spanGaps:true};
+    });
+    charts['c-ha-aht']=new Chart(c2,{type:'line',
+      data:{labels:hours,datasets},
+      options:{...BOPTS,
+        plugins:{legend:{labels:{color:'#94a3b8',font:{size:9},boxWidth:8,padding:6}}},
+        scales:{x:{ticks:{color:'#475569',font:{size:9}},grid:{color:'#1c2d44'}},
+                y:{ticks:{color:'#475569',font:{size:10},callback:v=>v+'m'},grid:{color:'#1c2d44'},beginAtZero:true}}}});
+  }
+
+  // Agent × Hour Table
+  const hours=Array.from({length:24},(_,i)=>i).filter(h=>filtered.some(r=>r._hour===h));
+  const ahMap={};
+  filtered.forEach(r=>{
+    const ag=String(r[C.agent]||'');if(!ag||ag==='-')return;
+    if(!ahMap[ag]) ahMap[ag]=new Array(24).fill(0);
+    if(r._hour!==null) ahMap[ag][r._hour]++;
+  });
+  const allAgents=Object.keys(ahMap).sort();
+  const maxV=Math.max(...Object.values(ahMap).flat(),1);
+  const hdrRow=`<thead><tr><th>Agent</th>${hours.map(h=>`<th>${fmt12(h)}</th>`).join('')}<th>Total</th></tr></thead>`;
+  const bodyRows=allAgents.map(ag=>{
+    const row=ahMap[ag]||new Array(24).fill(0);
+    const rowTotal=hours.reduce((a,h)=>a+row[h],0);
+    return`<tr><td style="font-weight:500;color:var(--text)">${ag}</td>${hours.map(h=>{
+      const v=row[h]||0;
+      const intensity=v/maxV;
+      const bg=v>0?`rgba(16,185,129,${0.1+intensity*0.6})`:'transparent';
+      const col=v>0&&intensity>0.5?'var(--text)':'var(--t2)';
+      return`<td><span class="heat" style="background:${bg};color:${col}">${v||''}</span></td>`;
+    }).join('')}<td style="font-weight:600;color:var(--green)">${rowTotal}</td></tr>`;
+  }).join('');
+  const tbl=document.getElementById('agent-hour-tbl');
+  if(tbl) tbl.innerHTML=hdrRow+'<tbody>'+bodyRows+'</tbody>';
+}
+
+// ══════════════════════════════════════════════
+// AGENT TABLE
+// ══════════════════════════════════════════════
+function renderAgentTable(){
+  const sorted=[...agentStats].sort((a,b)=>{
+    let av=a[sortKey]??0,bv=b[sortKey]??0;
+    if(typeof av==='string') av=av.toLowerCase();
+    if(typeof bv==='string') bv=bv.toLowerCase();
+    return av<bv?sortDir:av>bv?-sortDir:0;
+  });
+  const maxTotal=Math.max(...sorted.map(a=>a.total),1);
+
+  document.getElementById('agent-tbody').innerHTML=sorted.map(a=>{
+    const pct=Math.round(a.total/maxTotal*100);
+    const csatStr=a.csatPct!==null?a.csatPct+'%':'—';
+    const csatColor=a.csatPct===null?'var(--t3)':a.csatPct>=80?'var(--green)':a.csatPct>=60?'var(--orange)':'var(--red)';
+    return`<tr>
+      <td style="font-weight:500">${a.name}</td>
+      <td style="color:var(--t2);font-size:10px">${a.team}</td>
+      <td><div class="bar-cell"><span style="font-weight:600;min-width:28px">${a.total}</span>
+        <div class="mini-bg"><div class="mini-fill" style="width:${pct}%;background:var(--accent)"></div></div></div></td>
+      <td style="color:var(--cyan)">${a.inc}</td>
+      <td style="color:var(--purple)">${a.out}</td>
+      <td style="color:var(--green)">${a.ans}</td>
+      <td><span class="tpill" style="background:${a.abn>0?'rgba(239,68,68,.12)':'transparent'};color:${a.abn>0?'var(--red)':'var(--t2)'}">${a.abn}</span></td>
+      <td style="color:${a.ansRate>=80?'var(--green)':a.ansRate>=60?'var(--orange)':'var(--red)'};font-weight:500">${a.ansRate}%</td>
+      <td style="font-family:var(--mono);font-size:10px">${fmtDur(a.ahtSec)}</td>
+      <td style="font-family:var(--mono);font-size:10px">${fmtDur(a.talkSec)}</td>
+      <td style="font-family:var(--mono);font-size:10px">${fmtDur(a.acwSec)}</td>
+      <td>
+        ${a.csatPct!==null?`<div class="csat-bar">
+          <div class="csat-bg"><div class="csat-fill" style="width:${a.csatPct}%;background:${csatColor}"></div></div>
+          <span style="font-weight:600;color:${csatColor};font-size:11px">${csatStr}</span>
+        </div>`:
+        `<span style="color:var(--t3);font-size:10px">—</span>`}
+      </td>
+      <td style="color:var(--t2);font-size:10px">${a.csatTotal||'—'}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="13" style="text-align:center;color:var(--t3);padding:20px">No data</td></tr>';
+
+  // Sort indicators
+  const keys=['name','team','total','inc','out','ans','abn','ansRate','ahtSec','talkSec','acwSec','csatPct','csatCount'];
+  document.querySelectorAll('#agent-thead th').forEach((th,i)=>{
+    th.classList.remove('sa','sd');
+    if(keys[i]===sortKey) th.classList.add(sortDir===-1?'sd':'sa');
+  });
+}
+
+function renderCSATTable(){
+  const rows=agentStats.filter(a=>a.csatTotal>0||a.csatNoResp>0);
+  document.getElementById('csat-tbody').innerHTML=rows.sort((a,b)=>(b.csatPct||0)-(a.csatPct||0)).map(a=>`
+    <tr>
+      <td style="font-weight:500">${a.name}</td>
+      <td style="color:var(--t2)">${a.team}</td>
+      <td style="font-weight:600;color:var(--accent)">${a.csatTotal}</td>
+      <td style="color:var(--green)">${a.csatPos}</td>
+      <td style="color:var(--red)">${a.csatNeg}</td>
+      <td style="color:var(--t3)">${a.csatNoResp}</td>
+      <td>
+        ${a.csatPct!==null?`<div class="csat-bar">
+          <div class="csat-bg"><div class="csat-fill" style="width:${a.csatPct}%;background:${a.csatPct>=80?'var(--green)':a.csatPct>=60?'var(--orange)':'var(--red)'}"></div></div>
+          <span style="font-weight:700;color:${a.csatPct>=80?'var(--green)':a.csatPct>=60?'var(--orange)':'var(--red)'}">${a.csatPct}%</span>
+        </div>`:'—'}
+      </td>
+    </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:20px">No CSAT data</td></tr>';
+}
+
+function sortBy(key){
+  sortDir=sortKey===key?sortDir*-1:-1; sortKey=key;
+  renderAgentTable();
+}
+function filterAgentTable(){
+  const q=document.getElementById('agent-search').value.toLowerCase();
+  document.querySelectorAll('#agent-tbody tr').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';});
+}
+function filterAHTable(){
+  const q=document.getElementById('ah-search').value.toLowerCase();
+  document.querySelectorAll('#agent-hour-tbl tbody tr').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';});
+}
+
+// ══════════════════════════════════════════════
+// INSIGHTS
+// ══════════════════════════════════════════════
+function renderInsights(){
+  const d=filtered, total=d.length;
+  if(!total){document.getElementById('insights-grid').innerHTML='';return;}
+
+  const ans=d.filter(r=>String(r[C.status])==='Answered').length;
+  const abnReal=d.filter(r=>String(r[C.status])==='Abandoned'&&r[C.team]&&r[C.team]!=='-').length;
+  const inc=d.filter(r=>r._dir==='incoming').length;
+  const biz=d.filter(r=>r._biz==='Yes').length;
+  const nonBiz=d.filter(r=>r._biz==='No').length;
+  const ansRate=total?Math.round(ans/total*100):0;
+  const handleSec=d.reduce((a,r)=>a+r._handleSec,0);
+  const aht=ans?Math.round(handleSec/ans):0;
+
+  const hc=new Array(24).fill(0);
+  d.filter(r=>r._dir==='incoming').forEach(r=>{if(r._hour!==null)hc[r._hour]++;});
+  const peakH=hc.indexOf(Math.max(...hc)), peakCnt=hc[peakH];
+
+  const topQ=Object.entries(d.reduce((m,r)=>{const q=String(r[C.queue]||'');if(q&&q!=='-')m[q]=(m[q]||0)+1;return m;},{})).sort((a,b)=>b[1]-a[1])[0];
+  const busiest=agentStats.sort((a,b)=>b.total-a.total)[0];
+  const avgLoad=agentStats.length?Math.round(total/agentStats.length):0;
+  const topCSAT=agentStats.filter(a=>a.csatPct!==null).sort((a,b)=>b.csatPct-a.csatPct)[0];
+  const botCSAT=agentStats.filter(a=>a.csatPct!==null).sort((a,b)=>a.csatPct-b.csatPct)[0];
+  const nonBizInc=d.filter(r=>r._biz==='No'&&r._dir==='incoming').length;
+  const csatPos=d.filter(r=>String(r[C.csatOutcome]).trim()==='1').length;
+  const csatTotal=d.filter(r=>['1','2'].includes(String(r[C.csatOutcome]).trim())).length;
+  const csatPct=csatTotal?Math.round(csatPos/csatTotal*100):null;
+
+  const insights=[];
+
+  if(peakCnt>0) insights.push({icon:'📈',bg:'rgba(59,130,246,.12)',
+    title:`Peak Hour: ${fmt12(peakH)}–${fmt12(peakH+1)}`,
+    text:`${peakCnt} incoming calls at peak. Ensure maximum staffing during this window to reduce abandoned calls.`});
+
+  insights.push(ansRate<75?
+    {icon:'⚠️',bg:'rgba(239,68,68,.1)',title:`Low Answer Rate: ${ansRate}%`,
+      text:`Only ${ans} of ${total} calls were answered. Review queue routing and staffing during peak hours.`}:
+    {icon:'✅',bg:'rgba(16,185,129,.1)',title:`Answer Rate: ${ansRate}%`,
+      text:`${ans} of ${total} calls answered. ${total-ans} missed — benchmark target is 80%+ for top-tier contact centres.`});
+
+  if(abnReal>0) insights.push({icon:'📵',bg:'rgba(239,68,68,.08)',
+    title:`${abnReal} Abandoned Calls (Team-assigned)`,
+    text:`These are genuine queue-level abandons. The remaining ${d.filter(r=>String(r[C.status])==='Abandoned').length-abnReal} are IVR/voicemail drops counted in the raw dump.`});
+
+  if(nonBizInc>0) insights.push({icon:'🌙',bg:'rgba(139,92,246,.1)',
+    title:`${nonBizInc} After-Hours Incoming`,
+    text:`${inc?Math.round(nonBizInc/inc*100):0}% of incoming calls arrive outside business hours. Consider extended IVR, voicemail-to-ticket, or callback workflows.`});
+
+  if(aht>0) insights.push({icon:'⏱',bg:'rgba(6,182,212,.1)',
+    title:`AHT: ${fmtDur(aht)}`,
+    text:aht>600?`Average handle time exceeds 10 minutes. Review complex call types for deflection or KB improvement opportunities.`
+               :`Handle time is within efficient range. Agents are resolving calls promptly.`});
+
+  if(topQ) insights.push({icon:'📋',bg:'rgba(59,130,246,.1)',
+    title:`Busiest Queue: ${topQ[0]}`,
+    text:`${topQ[1]} calls (${Math.round(topQ[1]/total*100)}% of total). Ensure this queue has adequate staffing and optimised routing rules.`});
+
+  if(busiest) insights.push({icon:'🏆',bg:'rgba(245,158,11,.1)',
+    title:`Top Agent by Volume: ${busiest.name}`,
+    text:`Handled ${busiest.total} calls · ${fmtDur(busiest.talkSec)} talk time · Ans rate: ${busiest.ansRate}%`});
+
+  if(busiest&&busiest.total>avgLoad*2) insights.push({icon:'⚖️',bg:'rgba(239,68,68,.08)',
+    title:'Uneven Workload',
+    text:`Top agent carries ${busiest.total} calls vs team avg of ${avgLoad}. Review routing rules to prevent burnout.`});
+
+  if(csatPct!==null) insights.push({icon:'⭐',bg:'rgba(16,185,129,.08)',
+    title:`Overall CSAT: ${csatPct}% (${csatPos}/${csatTotal} surveys)`,
+    text:csatPct>=80?`Strong CSAT score. ${topCSAT?topCSAT.name+' leads at '+topCSAT.csatPct+'%.':''}`
+       :`Below 80% target. ${botCSAT?'Review '+botCSAT.name+' ('+botCSAT.csatPct+'%) for coaching opportunities.':''}`});
+
+  insights.push({icon:'🕘',bg:'rgba(99,102,241,.1)',
+    title:`${Math.round(biz/total*100)||0}% Calls in Business Hours`,
+    text:`${biz} business · ${nonBiz} after-hours. ${nonBiz>biz?'Majority after-hours — consider 24/7 coverage.':'Business hours carry primary load — standard staffing model applies.'}`});
+
+  document.getElementById('insights-grid').innerHTML=insights.map(i=>`
+    <div class="ins-card">
+      <div class="ins-icon" style="background:${i.bg}">${i.icon}</div>
+      <div><div class="ins-title">${i.title}</div><div class="ins-text">${i.text}</div></div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// ABANDONED TABLE
+// ══════════════════════════════════════════════
+function renderAbandonTable(){
+  const abnRows=filtered.filter(r=>String(r[C.status])==='Abandoned');
+  const qMap={};
+  abnRows.forEach(r=>{
+    const q=String(r[C.queue]||'Unknown');
+    const team=String(r[C.team]||'—');
+    if(!qMap[q]) qMap[q]={queue:q,team,total:0,waitQ:0,callQ:0,ringing:0,voicemail:0,short:0};
+    const m=qMap[q]; m.total++;
+    const at=String(r[C.abandonType]||'').toLowerCase();
+    if(at.includes('wait')) m.waitQ++;
+    else if(at.includes('call queue')) m.callQ++;
+    else if(at.includes('ringing')) m.ringing++;
+    else if(at.includes('voicemail')) m.voicemail++;
+    if(String(r[C.shortAban]||'').toLowerCase()==='yes') m.short++;
+  });
+  const sorted=Object.values(qMap).sort((a,b)=>b.total-a.total);
+  document.getElementById('abn-tbody').innerHTML=sorted.map(a=>`
+    <tr>
+      <td style="font-weight:500">${a.queue}</td>
+      <td style="color:var(--t2)">${a.team}</td>
+      <td style="font-weight:600;color:var(--red)">${a.total}</td>
+      <td>${a.waitQ||'—'}</td><td>${a.callQ||'—'}</td>
+      <td>${a.ringing||'—'}</td><td>${a.voicemail||'—'}</td>
+      <td><span class="tpill" style="background:${a.short?'rgba(245,158,11,.15)':'transparent'};color:${a.short?'var(--orange)':'var(--t3)'}">${a.short||'—'}</span></td>
+    </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--t3);padding:20px">No abandoned calls</td></tr>';
+}
+
+// ══════════════════════════════════════════════
+// COPY HELPERS
+// ══════════════════════════════════════════════
+function copyChart(canvasId){
+  const canvas=document.getElementById(canvasId);
+  if(!canvas){toast('Chart not found');return;}
+  canvas.toBlob(blob=>{
+    try{
+      const item=new ClipboardItem({'image/png':blob});
+      navigator.clipboard.write([item]).then(()=>toast('📊 Chart image copied!'));
+    } catch(e){
+      const url=canvas.toDataURL();
+      const a=document.createElement('a');a.href=url;a.download=canvasId+'.png';a.click();
+      toast('📊 Chart saved as PNG');
+    }
+  });
+}
+
+function copySection(sectionId, label){
+  const el=document.getElementById(sectionId);
+  if(!el){toast('Section not found');return;}
+  const text=el.innerText||el.textContent||'';
+  navigator.clipboard.writeText(label+'\n'+new Date().toLocaleString()+'\n\n'+text)
+    .then(()=>toast('📋 '+label+' copied as text'));
+}
+
+function copyTable(tableId, label){
+  const tbl=document.getElementById(tableId);
+  if(!tbl){toast('Table not found');return;}
+  // TSV format for pasting into Excel/Sheets
+  const rows=[...tbl.querySelectorAll('tr')];
+  const tsv=rows.map(r=>[...r.querySelectorAll('th,td')].map(c=>c.innerText.replace(/\t/g,' ')).join('\t')).join('\n');
+  navigator.clipboard.writeText(tsv).then(()=>toast('📋 '+label+' copied — paste into Excel/Sheets'));
+}
+
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.style.display='block';
+  setTimeout(()=>el.style.display='none',2800);
+}
+
+// ══════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    const names=['overview','hourly','agents','insights'];
+    t.classList.toggle('active',names[i]===name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  const panel=document.getElementById('tab-'+name);
+  if(panel) panel.classList.add('active');
+}
+
+// ══════════════════════════════════════════════
+// RESET
+// ══════════════════════════════════════════════
+function resetAll(){
+  raw=[];filtered=[];agentStats=[];
+  Object.keys(charts).forEach(k=>{if(charts[k])charts[k].destroy();delete charts[k];});
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('upload-screen').style.display='flex';
+  document.getElementById('fi').value='';
+  document.getElementById('u-err').style.display='none';
+  history.replaceState(null,'',window.location.pathname);
+}
+</script>
+</body>
+</html>
